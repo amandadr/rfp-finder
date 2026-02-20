@@ -204,6 +204,14 @@ def _run_filter(args: argparse.Namespace) -> None:
         store = OpportunityStore(args.db)
         opportunities = store.get_by_status(args.status) if args.status else store.get_all()
 
+    if not opportunities:
+        print(
+            "No opportunities in store. Run ingest first:\n"
+            "  poetry run rfp-finder ingest --source canadabuys --store rfp_finder.db",
+            file=__import__("sys").stderr,
+        )
+        raise SystemExit(1)
+
     results = engine.filter_many(opportunities)
     passed = [r for r in results if r.passed]
 
