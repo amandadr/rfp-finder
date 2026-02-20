@@ -45,10 +45,18 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 ---
 
-## Phase 5 — Document Handling (PDFs/Attachments) as Enrichment
+## Phase 5 — Document Handling (PDFs/Attachments) as Enrichment ✅
 
 **Solutions:** Attachment fetch/cache, text extraction pipeline, selective enrichment policy, evidence harvesting.  
-**Deliverable:** Higher accuracy, fewer "unknown eligibility" cases.
+**Deliverable:** Higher accuracy, fewer "unknown eligibility" cases.  
+**Status:** Complete. See `src/rfp_finder/attachments/`; `rfp-finder enrich`; `score --enrich-top N`.
+
+---
+
+## Pipeline & Run Command
+
+**`rfp-finder run`** runs the full pipeline: filter → score (with optional PDF enrichment).  
+Use `--stats` for filter exclusion breakdown. See `src/rfp_finder/pipeline.py`.
 
 ---
 

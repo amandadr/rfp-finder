@@ -33,6 +33,10 @@ poetry run rfp-finder store list --db rfp_finder.db --status open
 poetry run rfp-finder filter --profile profiles/example.yaml --db rfp_finder.db
 poetry run rfp-finder filter --profile profiles/example.yaml --db rfp_finder.db --show-explanations --output filtered.json
 
+# Run full pipeline (filter → score) — recommended
+poetry run rfp-finder run --profile profiles/example.yaml --db rfp_finder.db --output scored.json
+poetry run rfp-finder run --profile profiles/example.yaml --db rfp_finder.db --stats  # show filter breakdown
+
 # Run tests
 poetry run pytest tests/ -v
 ```

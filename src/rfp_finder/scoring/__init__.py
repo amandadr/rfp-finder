@@ -72,7 +72,13 @@ def score_opportunities(
                 opp, cache_dir, attachment_cache_store, fetch_missing=True
             )
 
-        llm_result = score_with_llm(opp, profile, enriched_text=enriched_text or None)
+        sim = paired[i][1] if i < len(paired) else None
+        llm_result = score_with_llm(
+            opp,
+            profile,
+            enriched_text=enriched_text or None,
+            similarity_score=sim,
+        )
         results.append(
             {
                 "opportunity": opp.model_dump(mode="json"),

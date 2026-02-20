@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 
+from rfp_finder.matching import positive_keyword_matches
 from rfp_finder.models.opportunity import NormalizedOpportunity
 from rfp_finder.models.profile import UserProfile
 
@@ -23,6 +24,7 @@ def score_with_llm(
     profile: UserProfile,
     *,
     enriched_text: str | None = None,
+    similarity_score: float | None = None,
 ) -> LLMScoringResult:
     """
     Score one opportunity with LLM. Uses RFP_FINDER_LLM_PROVIDER env:
@@ -36,51 +38,95 @@ def score_with_llm(
         return _score_ollama(opp, profile, enriched_text=enriched_text)
     if provider == "openai":
         return _score_openai(opp, profile, enriched_text=enriched_text)
-    return _score_stub(opp, profile, enriched_text=enriched_text)
+    return _score_stub(
+        opp, profile, enriched_text=enriched_text, similarity_score=similarity_score
+    )
 
 
-def _keyword_matches(text: str, keyword: str) -> bool:
-    """Full phrase match, or word-level match for multi-word keywords."""
-    kw_lower = keyword.lower()
-    if kw_lower in text:
-        return True
-    words = kw_lower.split()
-    if len(words) <= 1:
-        return False
-    # Multi-word: match if any significant word appears (partial relevance)
-    return sum(1 for w in words if len(w) > 2 and w in text) >= min(2, len(words))
+# Lead window for keyword matching (title + first N chars)
+_KEYWORD_LEAD_CHARS = 300
+
+# CanadaBuys category codes
+_CAT_SRV = "SRV"  # Services
+_CAT_CNST = "CNST"  # Construction
+# Commodity code prefixes that indicate clearly non-tech (CNST handled separately)
+_NON_TECH_PREFIXES = ("56", "90")  # furniture, cleaning (72=construction via CNST)
+
+
+def _keyword_in_lead(title: str, content: str, keyword: str) -> bool:
+    """True if keyword appears in title or first 300 chars of content."""
+    title_lower = (title or "").lower()
+    content_lower = (content or "").lower()
+    lead = content_lower[:_KEYWORD_LEAD_CHARS]
+    return positive_keyword_matches(title_lower, keyword) or positive_keyword_matches(
+        lead, keyword
+    )
+
+
+def _is_non_tech_category(opp: NormalizedOpportunity) -> bool:
+    """True if commodity codes suggest clearly non-tech (CNST handled separately)."""
+    for code in opp.commodity_codes or []:
+        code = (code or "").replace("*", "").strip()
+        if any(code.startswith(p) for p in _NON_TECH_PREFIXES):
+            return True
+    return False
 
 
 def _score_stub(
-    opp: NormalizedOpportunity, profile: UserProfile, *, enriched_text: str | None = None
+    opp: NormalizedOpportunity,
+    profile: UserProfile,
+    *,
+    enriched_text: str | None = None,
+    similarity_score: float | None = None,
 ) -> LLMScoringResult:
-    """Stub: heuristic score when no LLM configured."""
+    """Stub: small cumulative boosts, no free-text deal-breaker matching."""
     content = enriched_text or opp.summary or ""
-    text = f"{opp.title} {content}".lower()
-    cats_str = " ".join(opp.categories or []).lower()
     score = 50
     reasons: list[str] = []
     risks: list[str] = []
-    # Check up to 30 keywords; use word-level matching for multi-word phrases
+
+    # Similarity to good/bad examples: -15 to +15
+    if similarity_score is not None:
+        sim_bonus = int((similarity_score - 0.5) * 30)
+        sim_bonus = max(-15, min(15, sim_bonus))
+        if sim_bonus > 0:
+            score += sim_bonus
+            reasons.append("Similar to good-fit examples")
+        elif sim_bonus < 0:
+            score += sim_bonus
+
+    # +3 if PDF present
+    if enriched_text and "[Attachment:" in enriched_text:
+        score += 3
+        reasons.append("PDF attachment content available")
+
+    # +4 if category == SRV (Services)
+    cats = [c.upper() for c in (opp.categories or [])]
+    if _CAT_SRV in cats:
+        score += 4
+        reasons.append("Category: Services (SRV)")
+
+    # +5 per keyword in first 300 chars (title + lead), max 3 matches
+    kw_matches = 0
     if profile.keywords:
         for kw in profile.keywords[:30]:
-            if _keyword_matches(text, kw):
-                score += 4
-                reasons.append(f"Matches keyword: {kw}")
-    # Match preferred_categories only against structured categories (avoid HR dept "IT" false positives)
-    if profile.preferred_categories and opp.categories:
-        for cat in profile.preferred_categories[:5]:
-            if cat.lower() in cats_str:
+            if kw_matches >= 3:
+                break
+            if _keyword_in_lead(opp.title or "", content, kw):
                 score += 5
-                reasons.append(f"Category match: {cat}")
-    # Boost when PDF content was successfully extracted (enrichment worked)
-    if enriched_text and "[Attachment:" in enriched_text:
-        score += 10
-        reasons.append("PDF attachment content available")
-    for exc in profile.exclude_keywords:
-        if exc.lower() in text:
-            score -= 20
-            risks.append(f"Deal-breaker: {exc}")
+                reasons.append(f"Keyword in scope: {kw}")
+                kw_matches += 1
+
+    # -8 if category == CNST (Construction)
+    if _CAT_CNST in cats:
+        score -= 8
+        risks.append("Category: Construction (CNST)")
+
+    # -10 if category/commodity clearly non-tech
+    if _is_non_tech_category(opp):
+        score -= 10
+        risks.append("Category/commodity: non-tech")
+
     score = max(0, min(100, score))
     conf = _confidence_from_content(opp, content, enriched_text)
     evidence = [opp.title[:100]] if opp.title and opp.title != "Untitled" else []

@@ -166,6 +166,88 @@ def main() -> None:
         default=20,
         help="Max opportunities to score with LLM (default: 20)",
     )
+    score_parser.add_argument(
+        "--enrich-top",
+        type=int,
+        default=5,
+        metavar="N",
+        help="Enrich top N with PDF attachment text before LLM (default: 5, use 0 to disable)",
+    )
+    score_parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path("cache/attachments"),
+        help="Attachment cache directory (default: cache/attachments)",
+    )
+
+    # run (full pipeline: filter → score)
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run full pipeline: filter opportunities by profile, then score (filter → score)",
+    )
+    run_parser.add_argument(
+        "--profile",
+        type=Path,
+        required=True,
+        help="Path to profile YAML",
+    )
+    run_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Path to SQLite database",
+    )
+    run_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write scored results to file",
+    )
+    run_parser.add_argument(
+        "--top",
+        type=int,
+        default=20,
+        help="Max opportunities to score (default: 20)",
+    )
+    run_parser.add_argument(
+        "--enrich-top",
+        type=int,
+        default=5,
+        metavar="N",
+        help="Enrich top N with PDF attachment text (default: 5, use 0 to disable)",
+    )
+    run_parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path("cache/attachments"),
+        help="Attachment cache directory",
+    )
+    run_parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Show filter exclusion breakdown",
+    )
+
+    # enrich (Phase 5)
+    enrich_parser = subparsers.add_parser("enrich", help="Fetch and extract PDF attachments")
+    enrich_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Database path",
+    )
+    enrich_parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path("cache/attachments"),
+        help="Attachment cache directory",
+    )
+    enrich_parser.add_argument(
+        "--top",
+        type=int,
+        default=50,
+        help="Max opportunities to process (default: 50)",
+    )
 
     args = parser.parse_args()
 
@@ -179,6 +261,10 @@ def main() -> None:
         _run_examples(args)
     elif args.command == "score":
         _run_score(args)
+    elif args.command == "run":
+        _run_run(args)
+    elif args.command == "enrich":
+        _run_enrich(args)
     else:
         parser.print_help()
 
@@ -310,29 +396,15 @@ def _run_filter(args: argparse.Namespace) -> None:
 
 
 def _print_filter_stats(results: list) -> None:
-    """Print exclusion breakdown by first-failing rule. Rule order: region, keywords, deadline, budget."""
+    """Print exclusion breakdown by first-failing rule."""
     from collections import Counter
 
     passed = sum(1 for r in results if r.passed)
     excluded = [r for r in results if not r.passed]
     reasons: Counter[str] = Counter()
     for r in excluded:
-        for ex in r.explanations:
-            if "Excluded: region" in ex or ("region" in ex and "not in" in ex):
-                reasons["region"] += 1
-                break
-            if "Excluded: deal-breaker" in ex or "No required keywords found" in ex:
-                reasons["keywords"] += 1
-                break
-            if "Excluded: closing" in ex or ("closing" in ex and "days" in ex):
-                reasons["deadline"] += 1
-                break
-            if "Excluded:" in ex and "budget" in ex:
-                reasons["budget"] += 1
-                break
-            if ex.startswith("Excluded:"):
-                reasons["other"] += 1
-                break
+        rule = getattr(r, "excluded_by_rule", None) or "other"
+        reasons[rule] += 1
     total = len(results)
     print(f"\n--- Filter stats: {passed}/{total} passed ---")
     for rule, count in reasons.most_common():
@@ -380,7 +452,7 @@ def _run_score(args: argparse.Namespace) -> None:
     from rfp_finder.models.opportunity import NormalizedOpportunity
     from rfp_finder.models.profile import UserProfile
     from rfp_finder.scoring import score_opportunities
-    from rfp_finder.store import ExampleStore, OpportunityStore
+    from rfp_finder.store import AttachmentCacheStore, ExampleStore, OpportunityStore
 
     profile = UserProfile.from_yaml(args.profile)
     if args.input:
@@ -396,11 +468,15 @@ def _run_score(args: argparse.Namespace) -> None:
         print("No opportunities to score.", file=__import__("sys").stderr)
         raise SystemExit(1)
     ex_store = ExampleStore(args.db)
+    cache_store = AttachmentCacheStore(args.db) if getattr(args, "enrich_top", 0) > 0 else None
     scored = score_opportunities(
         profile=profile,
         opportunities=opportunities,
         example_store=ex_store,
         top_k=args.top,
+        enrich_top_n=getattr(args, "enrich_top", 0),
+        cache_dir=getattr(args, "cache_dir", None),
+        attachment_cache_store=cache_store,
     )
     output = json.dumps(scored, indent=2, default=str)
     if args.output:
@@ -408,6 +484,62 @@ def _run_score(args: argparse.Namespace) -> None:
         print(f"Scored {len(scored)} opportunities (wrote to {args.output})")
     else:
         print(output)
+
+
+def _run_run(args: argparse.Namespace) -> None:
+    """Run full pipeline: filter → score."""
+    from rfp_finder.models.profile import UserProfile
+    from rfp_finder.pipeline import run_pipeline
+
+    profile = UserProfile.from_yaml(args.profile)
+    show_stats = getattr(args, "stats", False)
+
+    result = run_pipeline(
+        profile=profile,
+        db_path=args.db,
+        status="open",
+        top_k=args.top,
+        enrich_top_n=getattr(args, "enrich_top", 5),
+        cache_dir=getattr(args, "cache_dir", None),
+        return_filter_results=show_stats,
+    )
+
+    if show_stats:
+        scored, filter_results = result
+        _print_filter_stats(filter_results)
+    else:
+        scored = result
+
+    if not scored:
+        print("No opportunities passed filters.", file=__import__("sys").stderr)
+        raise SystemExit(1)
+
+    output = json.dumps(scored, indent=2, default=str)
+    if args.output:
+        args.output.write_text(output, encoding="utf-8")
+        print(f"Scored {len(scored)} opportunities (wrote to {args.output})")
+    else:
+        print(output)
+
+
+def _run_enrich(args: argparse.Namespace) -> None:
+    """Run enrich command: fetch and extract PDF attachments for top opportunities."""
+    from rfp_finder.attachments import enrich_opportunity
+    from rfp_finder.models.opportunity import NormalizedOpportunity
+    from rfp_finder.store import AttachmentCacheStore, OpportunityStore
+
+    store = OpportunityStore(args.db)
+    opps = store.get_by_status("open")[: args.top]
+    cache_store = AttachmentCacheStore(args.db)
+    cache_dir = args.cache_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    enriched = 0
+    for opp in opps:
+        if opp.attachments:
+            text = enrich_opportunity(opp, cache_dir, cache_store, fetch_missing=True)
+            if "[Attachment:" in text:
+                enriched += 1
+    print(f"Enriched {enriched} opportunities with attachment text (cache: {cache_dir})")
 
 
 if __name__ == "__main__":

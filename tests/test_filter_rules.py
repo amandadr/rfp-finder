@@ -39,39 +39,39 @@ class TestRegionRule:
     def test_no_filter_passes(self) -> None:
         """No eligible/exclude regions passes."""
         profile = _make_profile()
-        passed, _ = apply_region_rule(_make_opp(region="QC"), profile)
+        passed, _, _ = apply_region_rule(_make_opp(region="QC"), profile)
         assert passed is True
 
     def test_matches_eligible_region(self) -> None:
         """Opp region in eligible_regions passes."""
         profile = _make_profile(eligible_regions=["ON", "National"])
-        passed, exp = apply_region_rule(_make_opp(region="ON"), profile)
+        passed, exp, _ = apply_region_rule(_make_opp(region="ON"), profile)
         assert passed is True
         assert "ON" in exp or "Matches" in exp
 
     def test_canadabuys_region_mapping(self) -> None:
         """CanadaBuys format '*Ontario (except NCR)' maps to ON."""
         profile = _make_profile(eligible_regions=["ON", "BC"])
-        passed, _ = apply_region_rule(_make_opp(region="*Ontario (except NCR)"), profile)
+        passed, _, _ = apply_region_rule(_make_opp(region="*Ontario (except NCR)"), profile)
         assert passed is True
 
     def test_excluded_region_fails(self) -> None:
         """Opp region in exclude_regions fails."""
         profile = _make_profile(exclude_regions=["QC"])
-        passed, exp = apply_region_rule(_make_opp(region="QC"), profile)
+        passed, exp, _ = apply_region_rule(_make_opp(region="QC"), profile)
         assert passed is False
         assert "exclude" in exp.lower()
 
     def test_not_in_eligible_fails(self) -> None:
         """Opp region not in eligible_regions fails."""
         profile = _make_profile(eligible_regions=["ON"])
-        passed, _ = apply_region_rule(_make_opp(region="QC"), profile)
+        passed, _, _ = apply_region_rule(_make_opp(region="QC"), profile)
         assert passed is False
 
     def test_no_region_on_opp_passes(self) -> None:
         """Missing region on opp passes (not applicable)."""
         profile = _make_profile(eligible_regions=["ON"])
-        passed, _ = apply_region_rule(_make_opp(region=None), profile)
+        passed, _, _ = apply_region_rule(_make_opp(region=None), profile)
         assert passed is True
 
 
@@ -81,32 +81,32 @@ class TestKeywordsRule:
     def test_no_filter_passes(self) -> None:
         """No keywords passes."""
         profile = _make_profile()
-        passed, _ = apply_keywords_rule(_make_opp(title="Anything"), profile)
+        passed, _, _ = apply_keywords_rule(_make_opp(title="Anything"), profile)
         assert passed is True
 
     def test_matches_keyword_in_title(self) -> None:
         """Keyword in title passes."""
         profile = _make_profile(keywords=["AI"])
-        passed, exp = apply_keywords_rule(_make_opp(title="AI software project"), profile)
+        passed, exp, _ = apply_keywords_rule(_make_opp(title="AI software project"), profile)
         assert passed is True
         assert "AI" in exp
 
     def test_exclude_keyword_fails(self) -> None:
         """Exclude keyword in content fails."""
         profile = _make_profile(exclude_keywords=["construction"])
-        passed, _ = apply_keywords_rule(_make_opp(title="Construction services"), profile)
+        passed, _, _ = apply_keywords_rule(_make_opp(title="Construction services"), profile)
         assert passed is False
 
     def test_no_keyword_match_fails(self) -> None:
         """No required keyword found fails when keywords_mode=required."""
         profile = _make_profile(keywords=["AI", "ML"])
-        passed, _ = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
+        passed, _, _ = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
         assert passed is False
 
     def test_keywords_mode_preferred_passes_without_match(self) -> None:
         """With keywords_mode=preferred, pass even without keyword match."""
         profile = _make_profile(keywords=["AI"], keywords_mode="preferred")
-        passed, exp = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
+        passed, exp, _ = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
         assert passed is True
         assert "optional" in exp.lower() or "AI" in exp
 
@@ -117,28 +117,28 @@ class TestDeadlineRule:
     def test_no_filter_passes(self) -> None:
         """No max_days_to_close passes."""
         profile = _make_profile()
-        passed, _ = apply_deadline_rule(_make_opp(closing_at=datetime.now(timezone.utc) + timedelta(days=30)), profile)
+        passed, _, _ = apply_deadline_rule(_make_opp(closing_at=datetime.now(timezone.utc) + timedelta(days=30)), profile)
         assert passed is True
 
     def test_past_closing_fails(self) -> None:
         """Past closing date fails."""
         profile = _make_profile(max_days_to_close=60)
         past = datetime.now(timezone.utc) - timedelta(days=1)
-        passed, _ = apply_deadline_rule(_make_opp(closing_at=past), profile)
+        passed, _, _ = apply_deadline_rule(_make_opp(closing_at=past), profile)
         assert passed is False
 
     def test_within_window_passes(self) -> None:
         """Closing within window passes."""
         profile = _make_profile(max_days_to_close=60)
         future = datetime.now(timezone.utc) + timedelta(days=30)
-        passed, exp = apply_deadline_rule(_make_opp(closing_at=future), profile)
+        passed, exp, _ = apply_deadline_rule(_make_opp(closing_at=future), profile)
         assert passed is True
         assert "30" in exp or "within" in exp.lower()
 
     def test_no_closing_date_passes(self) -> None:
         """Missing closing_at passes (not applicable)."""
         profile = _make_profile(max_days_to_close=30)
-        passed, _ = apply_deadline_rule(_make_opp(closing_at=None), profile)
+        passed, _, _ = apply_deadline_rule(_make_opp(closing_at=None), profile)
         assert passed is True
 
 
@@ -148,25 +148,25 @@ class TestBudgetRule:
     def test_no_filter_passes(self) -> None:
         """No budget filter passes."""
         profile = _make_profile()
-        passed, _ = apply_budget_rule(_make_opp(budget_max=Decimal("100000")), profile)
+        passed, _, _ = apply_budget_rule(_make_opp(budget_max=Decimal("100000")), profile)
         assert passed is True
 
     def test_within_max_passes(self) -> None:
         """Opp budget within profile max passes."""
         profile = _make_profile(max_budget=Decimal("500000"))
-        passed, _ = apply_budget_rule(_make_opp(budget_max=Decimal("100000")), profile)
+        passed, _, _ = apply_budget_rule(_make_opp(budget_max=Decimal("100000")), profile)
         assert passed is True
 
     def test_above_max_fails(self) -> None:
         """Opp budget above profile max fails."""
         profile = _make_profile(max_budget=Decimal("50000"))
-        passed, _ = apply_budget_rule(_make_opp(budget_min=Decimal("100000")), profile)
+        passed, _, _ = apply_budget_rule(_make_opp(budget_min=Decimal("100000")), profile)
         assert passed is False
 
     def test_no_budget_on_opp_passes(self) -> None:
         """Missing budget on opp passes (not applicable)."""
         profile = _make_profile(max_budget=Decimal("100000"))
-        passed, _ = apply_budget_rule(_make_opp(), profile)
+        passed, _, _ = apply_budget_rule(_make_opp(), profile)
         assert passed is True
 
 

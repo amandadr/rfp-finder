@@ -24,9 +24,13 @@ class FilterResult(BaseModel):
     explanations: list[str] = Field(default_factory=list)
     eligibility: str = Field(..., description="eligible | ineligible | unknown")
     opportunity: NormalizedOpportunity = Field(..., description="The opportunity that was filtered")
+    excluded_by_rule: Optional[str] = Field(
+        default=None,
+        description="First rule that excluded (region|keywords|deadline|budget)",
+    )
 
 
-RuleFn = Callable[[NormalizedOpportunity, UserProfile], tuple[bool, str]]
+RuleFn = Callable[[NormalizedOpportunity, UserProfile], tuple[bool, str, str]]
 
 
 class FilterEngine:
@@ -49,12 +53,15 @@ class FilterEngine:
         """Apply all rules and return FilterResult with explanation trail."""
         explanations: list[str] = []
         all_passed = True
+        excluded_by: Optional[str] = None
 
         for rule_fn in self._hard_rules:
-            passed, explanation = rule_fn(opp, self.profile)
+            passed, explanation, rule_id = rule_fn(opp, self.profile)
             explanations.append(explanation)
             if not passed:
                 all_passed = False
+                if excluded_by is None:
+                    excluded_by = rule_id
 
         eligibility, elig_explanation = apply_eligibility_rule(opp, self.profile)
         explanations.append(elig_explanation)
@@ -64,6 +71,7 @@ class FilterEngine:
             explanations=explanations,
             eligibility=eligibility,
             opportunity=opp,
+            excluded_by_rule=excluded_by,
         )
 
     def filter_many(
