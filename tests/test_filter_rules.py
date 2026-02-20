@@ -47,7 +47,13 @@ class TestRegionRule:
         profile = _make_profile(eligible_regions=["ON", "National"])
         passed, exp = apply_region_rule(_make_opp(region="ON"), profile)
         assert passed is True
-        assert "ON" in exp
+        assert "ON" in exp or "Matches" in exp
+
+    def test_canadabuys_region_mapping(self) -> None:
+        """CanadaBuys format '*Ontario (except NCR)' maps to ON."""
+        profile = _make_profile(eligible_regions=["ON", "BC"])
+        passed, _ = apply_region_rule(_make_opp(region="*Ontario (except NCR)"), profile)
+        assert passed is True
 
     def test_excluded_region_fails(self) -> None:
         """Opp region in exclude_regions fails."""
@@ -92,10 +98,17 @@ class TestKeywordsRule:
         assert passed is False
 
     def test_no_keyword_match_fails(self) -> None:
-        """No required keyword found fails."""
+        """No required keyword found fails when keywords_mode=required."""
         profile = _make_profile(keywords=["AI", "ML"])
         passed, _ = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
         assert passed is False
+
+    def test_keywords_mode_preferred_passes_without_match(self) -> None:
+        """With keywords_mode=preferred, pass even without keyword match."""
+        profile = _make_profile(keywords=["AI"], keywords_mode="preferred")
+        passed, exp = apply_keywords_rule(_make_opp(title="Office supplies"), profile)
+        assert passed is True
+        assert "optional" in exp.lower() or "AI" in exp
 
 
 class TestDeadlineRule:

@@ -37,10 +37,11 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 ---
 
-## Phase 4 — AI Relevance Scoring Using Examples
+## Phase 4 — AI Relevance Scoring Using Examples ✅
 
-**Solutions:** Example ingestion, embedding similarity shortlist, LLM ranking + rationale, confidence labels.  
-**Deliverable:** Ranked, personalized, explainable opportunities.
+**Solutions:** Example ingestion, similarity shortlist, LLM ranking + rationale, confidence labels.  
+**Deliverable:** Ranked, personalized, explainable opportunities.  
+**Status:** Complete. See `src/rfp_finder/scoring/`; `rfp-finder examples add/list/sync`; `rfp-finder score`.
 
 ---
 

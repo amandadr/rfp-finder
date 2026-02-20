@@ -1,0 +1,102 @@
+profile_id: manny-ai
+
+# --- Core Matching ---
+# keywords_mode: required | preferred | exclude_only
+#   preferred = don't require keyword match; pass more to AI scoring (recommended)
+keywords_mode: preferred
+keywords:
+  - "artificial intelligence"
+  - "machine learning"
+  - "AI strategy"
+  - "AI consulting"
+  - "AI implementation"
+  - "AI training"
+  - "AI evaluation"
+  - "AI optimization"
+  - "AI monitoring"
+  - "AI reporting"
+  - "AI documentation"
+  - "AI training"
+  - "AI development"
+  - "AI integration"
+  - "automation"
+  - "process automation"
+  - "software development"
+  - "API integration"
+  - "data engineering"
+  - "digital transformation"
+  - "innovation"
+  - "analytics"
+  - "information technology"
+  - "infrastructure"
+  - "infrastructure architecture"
+  - "web development"
+  - "mobile development"
+  - "software architecture"
+  - "software design"
+  - "software engineering"
+  - "software maintenance"
+  - "software optimization"
+  - "software development"
+  - "API integration"
+  - "data engineering"
+  - "digital transformation"
+  - "innovation"
+  - "analytics"
+  - "SEO"
+
+exclude_keywords:
+  - reseller
+  - license procurement
+  - hardware maintenance
+  - construction
+  - printing
+  - landscaping
+  - hardware supply
+  - catering
+  - janitorial
+
+preferred_categories:
+  - "Information Technology"
+  - "Professional Services"
+  - "Consulting"
+  - "Software"
+  - "AI"
+
+example_urls: ["https://digitalnovascotia.com/wp-content/uploads/gravity_forms/60-9badabd16fedd27f545d16f3cbe01ec8/2026/01/RFP-for-Pictou-County-FDI-Dashboard-for-Website.pdf", "https://www.technologycouncil.ca/news/request-for-proposals-branding-website-digital-learning-platform/"]
+bad_fit_urls: ["https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/mx-443819678466", "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/86352/scc_rfp_2025-06_asessment-management-tool-%28amt-solution.pdf"]
+
+# --- Geography ---
+eligible_regions:
+  - "AB"
+  - "MB"
+  - "NS"
+  - "NB"
+  - "NL"
+  - "NT"
+  - "NU"
+  - "PE"
+  - "QC"
+  - "BC"
+  - "ON"
+  - "National"
+
+exclude_regions: []
+
+# --- Eligibility ---
+citizenship_required: canadian
+security_clearance: null
+local_vendor_only: null
+
+# --- Budget ---
+min_budget: 25000
+max_budget: 750000
+
+# --- Timing ---
+max_days_to_close: 28
+
+# --- Delivery ---
+cadence: weekly
+schedule_cron: null
+notification_channel: email
+email: "manny@mannyroy.com"

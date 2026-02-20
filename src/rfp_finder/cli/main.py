@@ -101,6 +101,71 @@ def main() -> None:
         action="store_true",
         help="Include filter explanations in output",
     )
+    filter_parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Show exclusion breakdown (keyword, region, deadline, budget)",
+    )
+
+    # examples (Phase 4)
+    examples_parser = subparsers.add_parser("examples", help="Manage good/bad fit examples for AI scoring")
+    examples_parser.add_argument(
+        "action",
+        choices=["add", "list", "sync"],
+        help="Add example, list examples, or sync from profile YAML",
+    )
+    examples_parser.add_argument(
+        "--profile",
+        type=Path,
+        required=True,
+        help="Path to profile YAML (for sync) or profile_id (for add/list)",
+    )
+    examples_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Path to SQLite database",
+    )
+    examples_parser.add_argument("--url", type=str, help="Example URL (for add)")
+    examples_parser.add_argument(
+        "--label",
+        type=str,
+        choices=["good", "bad"],
+        help="Label: good or bad fit (for add)",
+    )
+
+    # score (Phase 4)
+    score_parser = subparsers.add_parser("score", help="AI relevance scoring of filtered opportunities")
+    score_parser.add_argument(
+        "--profile",
+        type=Path,
+        required=True,
+        help="Path to profile YAML",
+    )
+    score_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Read from store",
+    )
+    score_parser.add_argument(
+        "--input",
+        type=Path,
+        default=None,
+        help="Read filtered JSON (alternative to --db)",
+    )
+    score_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write scored results",
+    )
+    score_parser.add_argument(
+        "--top",
+        type=int,
+        default=20,
+        help="Max opportunities to score with LLM (default: 20)",
+    )
 
     args = parser.parse_args()
 
@@ -110,6 +175,10 @@ def main() -> None:
         _run_store(args)
     elif args.command == "filter":
         _run_filter(args)
+    elif args.command == "examples":
+        _run_examples(args)
+    elif args.command == "score":
+        _run_score(args)
     else:
         parser.print_help()
 
@@ -215,6 +284,9 @@ def _run_filter(args: argparse.Namespace) -> None:
     results = engine.filter_many(opportunities)
     passed = [r for r in results if r.passed]
 
+    if getattr(args, "stats", False):
+        _print_filter_stats(results)
+
     if args.show_explanations:
         output_data = [
             {
@@ -233,6 +305,107 @@ def _run_filter(args: argparse.Namespace) -> None:
     if args.output:
         args.output.write_text(output, encoding="utf-8")
         print(f"Filtered: {len(passed)} passed of {len(opportunities)} (wrote to {args.output})")
+    else:
+        print(output)
+
+
+def _print_filter_stats(results: list) -> None:
+    """Print exclusion breakdown by first-failing rule. Rule order: region, keywords, deadline, budget."""
+    from collections import Counter
+
+    passed = sum(1 for r in results if r.passed)
+    excluded = [r for r in results if not r.passed]
+    reasons: Counter[str] = Counter()
+    for r in excluded:
+        for ex in r.explanations:
+            if "Excluded: region" in ex or ("region" in ex and "not in" in ex):
+                reasons["region"] += 1
+                break
+            if "Excluded: deal-breaker" in ex or "No required keywords found" in ex:
+                reasons["keywords"] += 1
+                break
+            if "Excluded: closing" in ex or ("closing" in ex and "days" in ex):
+                reasons["deadline"] += 1
+                break
+            if "Excluded:" in ex and "budget" in ex:
+                reasons["budget"] += 1
+                break
+            if ex.startswith("Excluded:"):
+                reasons["other"] += 1
+                break
+    total = len(results)
+    print(f"\n--- Filter stats: {passed}/{total} passed ---")
+    for rule, count in reasons.most_common():
+        pct = 100 * count / total
+        print(f"  Excluded by {rule}: {count} ({pct:.1f}%)")
+    if reasons:
+        print()
+
+
+def _run_examples(args: argparse.Namespace) -> None:
+    """Run examples command."""
+    from rfp_finder.models.profile import UserProfile
+    from rfp_finder.store import ExampleStore, OpportunityStore
+
+    profile = UserProfile.from_yaml(args.profile)
+    ex_store = ExampleStore(args.db)
+
+    if args.action == "add":
+        if not args.url or not args.label:
+            raise SystemExit("examples add requires --url and --label")
+        ex = ex_store.add(profile.profile_id, args.url, args.label)
+        print(f"Added {args.label} example: {ex.url} (id={ex.id})")
+    elif args.action == "list":
+        for ex in ex_store.list_by_profile(profile.profile_id):
+            print(f"  [{ex.label}] {ex.url}")
+    elif args.action == "sync":
+        opp_store = OpportunityStore(args.db)
+        existing_urls: set[str] = {e.url for e in ex_store.list_by_profile(profile.profile_id)}
+        added = 0
+        for url in profile.example_urls:
+            if url not in existing_urls:
+                ex_store.add(profile.profile_id, url, "good")
+                added += 1
+                existing_urls.add(url)
+        for url in profile.bad_fit_urls:
+            if url not in existing_urls:
+                ex_store.add(profile.profile_id, url, "bad")
+                added += 1
+        print(f"Synced {added} new examples from profile (good: {len(profile.example_urls)}, bad: {len(profile.bad_fit_urls)})")
+
+
+def _run_score(args: argparse.Namespace) -> None:
+    """Run score command. When using --db, runs filter first to score only passed opportunities."""
+    from rfp_finder.filtering import FilterEngine
+    from rfp_finder.models.opportunity import NormalizedOpportunity
+    from rfp_finder.models.profile import UserProfile
+    from rfp_finder.scoring import score_opportunities
+    from rfp_finder.store import ExampleStore, OpportunityStore
+
+    profile = UserProfile.from_yaml(args.profile)
+    if args.input:
+        data = json.loads(args.input.read_text())
+        opportunities = [NormalizedOpportunity.model_validate(o) for o in data]
+    else:
+        store = OpportunityStore(args.db)
+        raw = store.get_by_status("open")
+        engine = FilterEngine(profile)
+        results = engine.filter_many(raw)
+        opportunities = [r.opportunity for r in results if r.passed]
+    if not opportunities:
+        print("No opportunities to score.", file=__import__("sys").stderr)
+        raise SystemExit(1)
+    ex_store = ExampleStore(args.db)
+    scored = score_opportunities(
+        profile=profile,
+        opportunities=opportunities,
+        example_store=ex_store,
+        top_k=args.top,
+    )
+    output = json.dumps(scored, indent=2, default=str)
+    if args.output:
+        args.output.write_text(output, encoding="utf-8")
+        print(f"Scored {len(scored)} opportunities (wrote to {args.output})")
     else:
         print(output)
 

@@ -21,6 +21,12 @@ class UserProfile(BaseModel):
     keywords: list[str] = Field(default_factory=list, description="Must-have terms")
     exclude_keywords: list[str] = Field(default_factory=list, description="Deal-breakers")
     preferred_categories: list[str] = Field(default_factory=list)
+    keywords_mode: str = Field(
+        default="required",
+        description="required | preferred | exclude_only. 'preferred' and 'exclude_only' pass more to AI.",
+    )
+    example_urls: list[str] = Field(default_factory=list, description="Good-fit example URLs for AI scoring")
+    bad_fit_urls: list[str] = Field(default_factory=list, description="Bad-fit example URLs for AI scoring")
 
     eligible_regions: list[str] = Field(
         default_factory=list,
@@ -53,6 +59,9 @@ class UserProfile(BaseModel):
         flat["keywords"] = _get("keywords", filters, data) or []
         flat["exclude_keywords"] = _get("exclude_keywords", filters, data) or []
         flat["preferred_categories"] = _get("preferred_categories", filters, data) or []
+        flat["example_urls"] = _get("example_urls", filters, data) or []
+        flat["bad_fit_urls"] = _get("bad_fit_urls", filters, data) or []
+        flat["keywords_mode"] = _get("keywords_mode", filters, data) or "required"
         raw_regions = _get("regions", filters, data) or _get("eligible_regions", filters, data) or []
         flat["eligible_regions"] = [str(r) for r in raw_regions]
         flat["exclude_regions"] = _get("exclude_regions", filters, data) or []

@@ -13,10 +13,51 @@ def _normalize_for_match(text: Optional[str]) -> str:
     return (text or "").lower().strip()
 
 
+# Map CanadaBuys region substring -> province/territory code (check in order)
+_REGION_MAP: list[tuple[str, str]] = [
+    ("alberta", "AB"),
+    ("british columbia", "BC"),
+    ("manitoba", "MB"),
+    ("new brunswick", "NB"),
+    ("moncton", "NB"),
+    ("newfoundland", "NL"),
+    ("labrador", "NL"),
+    ("nova scotia", "NS"),
+    ("ontario", "ON"),
+    ("ottawa", "ON"),
+    ("ncr", "ON"),
+    ("toronto", "ON"),
+    ("quebec", "QC"),
+    ("montreal", "QC"),
+    ("shawinigan", "QC"),
+    ("saskatchewan", "SK"),
+    ("regina", "SK"),
+    ("prince edward", "PE"),
+    ("northwest territories", "NT"),
+    ("nunavut", "NU"),
+    ("yukon", "YT"),
+    ("canada", "National"),
+    ("national", "National"),
+    ("world", "National"),
+    ("north america", "National"),
+    ("remote offsite", "National"),
+    ("unspecified", "National"),
+]
+
+
+def _region_to_code(region: str) -> str:
+    """Map CanadaBuys region string (e.g. '*Ontario (except NCR)') to province code."""
+    r = region.lower().strip().replace("*", "")
+    for substr, code in _REGION_MAP:
+        if substr in r:
+            return code
+    return r.upper()[:2] if len(r) >= 2 else r.upper()
+
+
 def apply_region_rule(opp: NormalizedOpportunity, profile: UserProfile) -> tuple[bool, str]:
     """
     Region filter: opp.region in profile.eligible_regions or "National".
-    exclude_regions take precedence.
+    Maps CanadaBuys region strings (e.g. "*Ontario (except NCR)") to province codes.
     """
     if not profile.eligible_regions and not profile.exclude_regions:
         return True, "Region filter not set"
@@ -25,17 +66,17 @@ def apply_region_rule(opp: NormalizedOpportunity, profile: UserProfile) -> tuple
     if not opp_region:
         return True, "Region not applicable (no region on opportunity)"
 
-    opp_norm = opp_region.upper()
-    eligible_norm = [r.upper() for r in profile.eligible_regions]
-    exclude_norm = [r.upper() for r in profile.exclude_regions]
+    opp_code = _region_to_code(opp_region)
+    eligible_norm = [r.upper().strip() for r in profile.eligible_regions]
+    exclude_norm = [r.upper().strip() for r in profile.exclude_regions]
 
-    if opp_norm in exclude_norm:
+    if opp_code.upper() in exclude_norm:
         return False, f"Excluded: region {opp_region} in exclude_regions"
 
     if not eligible_norm:
         return True, f"Region {opp_region} (no eligible_regions restriction)"
 
-    if opp_norm in eligible_norm or opp_norm == "NATIONAL":
+    if opp_code.upper() in eligible_norm or opp_code == "NATIONAL":
         return True, f"Matches region: {opp_region}"
 
     return False, f"Excluded: region {opp_region} not in eligible_regions"
@@ -43,8 +84,9 @@ def apply_region_rule(opp: NormalizedOpportunity, profile: UserProfile) -> tuple
 
 def apply_keywords_rule(opp: NormalizedOpportunity, profile: UserProfile) -> tuple[bool, str]:
     """
-    Keywords: must match at least one keyword; must not match exclude_keywords.
-    Searches title, summary, categories.
+    Keywords: exclude_keywords always apply (deal-breakers).
+    When keywords_mode=required: must match at least one keyword.
+    When keywords_mode=preferred or exclude_only: no keyword requirement (pass more to AI).
     """
     if not profile.keywords and not profile.exclude_keywords:
         return True, "Keywords filter not set"
@@ -61,6 +103,10 @@ def apply_keywords_rule(opp: NormalizedOpportunity, profile: UserProfile) -> tup
     for exc in profile.exclude_keywords:
         if exc.lower() in searchable:
             return False, f"Excluded: deal-breaker keyword '{exc}' found"
+
+    mode = getattr(profile, "keywords_mode", "required") or "required"
+    if mode in ("preferred", "exclude_only"):
+        return True, "Keywords optional (mode: pass to AI)"
 
     if not profile.keywords:
         return True, "No required keywords"

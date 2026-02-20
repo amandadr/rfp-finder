@@ -30,3 +30,17 @@ CREATE TABLE IF NOT EXISTS runs (
 
 CREATE INDEX IF NOT EXISTS idx_runs_source ON runs(source);
 CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at);
+
+-- Phase 4: Example opportunities for AI relevance scoring
+CREATE TABLE IF NOT EXISTS examples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    label TEXT NOT NULL CHECK (label IN ('good', 'bad')),
+    title TEXT,
+    summary TEXT,
+    raw_text TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_examples_profile ON examples(profile_id);
+CREATE INDEX IF NOT EXISTS idx_examples_label ON examples(label);
