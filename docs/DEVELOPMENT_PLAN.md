@@ -13,17 +13,19 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 ---
 
-## Phase 1 — Source Ingestion (v1)
+## Phase 1 — Source Ingestion (v1) ✅
 
 **Solutions:** Connector framework, CanadaBuys connector, incremental fetching, attachment discovery.  
-**Deliverable:** Repeatable run producing normalized opportunities from first source.
+**Deliverable:** Repeatable run producing normalized opportunities from first source.  
+**Status:** Complete.
 
 ---
 
-## Phase 2 — Storage, Dedupe, and Change Tracking
+## Phase 2 — Storage, Dedupe, and Change Tracking ✅
 
 **Solutions:** SQLite store, deterministic IDs, content-hash amendment detection, lifecycle status.  
-**Deliverable:** Daily runs without spam; only new/amended items for digest.
+**Deliverable:** Daily runs without spam; only new/amended items for digest.  
+**Status:** Complete. See `src/rfp_finder/store/`; `rfp-finder ingest --store DB`; `rfp-finder store list/count`.
 
 ---
 

@@ -36,11 +36,40 @@ def main() -> None:
         action="store_true",
         help="Use incremental fetch (new tenders feed)",
     )
+    ingest_parser.add_argument(
+        "--store",
+        type=Path,
+        default=None,
+        metavar="DB_PATH",
+        help="Persist to SQLite store at given path (e.g. rfp_finder.db)",
+    )
+
+    # store
+    store_parser = subparsers.add_parser("store", help="Query the opportunity store")
+    store_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Path to SQLite database",
+    )
+    store_parser.add_argument(
+        "action",
+        choices=["list", "count"],
+        help="List opportunities or show count",
+    )
+    store_parser.add_argument(
+        "--status",
+        type=str,
+        default=None,
+        help="Filter by status (open, closed, amended)",
+    )
 
     args = parser.parse_args()
 
     if args.command == "ingest":
         _run_ingest(args)
+    elif args.command == "store":
+        _run_store(args)
     else:
         parser.print_help()
 
@@ -55,12 +84,37 @@ def _run_ingest(args: argparse.Namespace) -> None:
         try:
             since_dt = datetime.strptime(args.since, "%Y-%m-%d")
         except ValueError:
-            raise SystemExit(f"Invalid --since format. Use YYYY-MM-DD.")
+            raise SystemExit("Invalid --since format. Use YYYY-MM-DD.")
 
     if args.incremental or since_dt:
         opportunities = connector.fetch_incremental(since=since_dt)
     else:
         opportunities = connector.fetch_all()
+
+    store = None
+    run_record = None
+    if args.store is not None:
+        from rfp_finder.store import OpportunityStore
+
+        store = OpportunityStore(args.store)
+        run_record = store.start_run(args.source)
+
+    items_new = 0
+    items_amended = 0
+    if store and run_record:
+        for opp in opportunities:
+            was_new, was_amended = store.upsert(opp)
+            if was_new:
+                items_new += 1
+            if was_amended:
+                items_amended += 1
+        store.finish_run(
+            run_record.id,
+            items_fetched=len(opportunities),
+            items_new=items_new,
+            items_amended=items_amended,
+        )
+        print(f"Store: {len(opportunities)} fetched, {items_new} new, {items_amended} amended")
 
     output = json.dumps(
         [o.model_dump(mode="json") for o in opportunities],
@@ -73,6 +127,24 @@ def _run_ingest(args: argparse.Namespace) -> None:
         print(f"Wrote {len(opportunities)} opportunities to {args.output}")
     else:
         print(output)
+
+
+def _run_store(args: argparse.Namespace) -> None:
+    """Run store command."""
+    from rfp_finder.store import OpportunityStore
+
+    store = OpportunityStore(args.db)
+    if args.action == "list":
+        opps = store.get_by_status(args.status) if args.status else store.get_all()
+        output = json.dumps(
+            [o.model_dump(mode="json") for o in opps],
+            indent=2,
+            default=str,
+        )
+        print(output)
+    elif args.action == "count":
+        opps = store.get_by_status(args.status) if args.status else store.get_all()
+        print(len(opps))
 
 
 if __name__ == "__main__":

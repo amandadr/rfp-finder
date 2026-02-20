@@ -22,10 +22,18 @@ poetry run rfp-finder ingest --source canadabuys --output opportunities.json
 # Incremental fetch (new tenders only)
 poetry run rfp-finder ingest --source canadabuys --incremental
 
+# Ingest and persist to SQLite store
+poetry run rfp-finder ingest --source canadabuys --store rfp_finder.db
+
+# Query the store
+poetry run rfp-finder store count --db rfp_finder.db
+poetry run rfp-finder store list --db rfp_finder.db --status open
+
 # Run tests
 poetry run pytest tests/ -v
 ```
 
 ## Project Status
 
-- **Phase 1 (Source Ingestion)** — Complete. CanadaBuys connector using official open data CSV; connector framework; incremental fetch; attachment discovery; full test coverage.
+- **Phase 1 (Source Ingestion)** — Complete. CanadaBuys connector; connector framework; incremental fetch; attachment discovery.
+- **Phase 2 (Storage, Dedupe, Change Tracking)** — Complete. SQLite store with upsert, deduplication by (source, source_id), content-hash amendment detection, lifecycle status, run tracking.

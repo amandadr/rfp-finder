@@ -323,6 +323,8 @@ def content_hash(opp: NormalizedOpportunity) -> str:
 - Hash-based change detection and amendment tracking.
 - CLI: `rfp-finder ingest --source canadabuys` persists to store and reports new/amended counts.
 
+**Implementation:** `OpportunityStore` in `src/rfp_finder/store/`; `--store DB_PATH` flag; `store list/count` subcommand. Run tracking in `runs` table.
+
 ---
 
 ## Phase 3 — Profile-Based Filtering (Non-AI Baseline)
