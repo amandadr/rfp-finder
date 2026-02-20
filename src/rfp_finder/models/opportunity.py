@@ -45,6 +45,10 @@ class NormalizedOpportunity(BaseModel):
     budget_max: Optional[Decimal] = None
     budget_currency: Optional[str] = None
 
+    citizenship_required: Optional[str] = None  # "canadian" | "none" | from source
+    security_clearance: Optional[str] = None
+    local_vendor_only: Optional[bool] = None
+
     attachments: list[AttachmentRef] = Field(default_factory=list)
 
     status: str = "open"

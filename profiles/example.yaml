@@ -1,0 +1,15 @@
+# Example user profile for Phase 3 filtering
+profile_id: example
+
+filters:
+  regions: ["ON", "National"]
+  keywords: [AI, software, technology]
+  exclude_keywords: [construction, hardware]
+  max_days_to_close: 60
+  min_budget: null
+  max_budget: 500000
+
+eligibility:
+  citizenship_required: canadian
+  security_clearance: null
+  local_vendor_only: false

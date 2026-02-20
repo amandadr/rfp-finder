@@ -64,12 +64,52 @@ def main() -> None:
         help="Filter by status (open, closed, amended)",
     )
 
+    # filter
+    filter_parser = subparsers.add_parser("filter", help="Filter opportunities by profile")
+    filter_parser.add_argument(
+        "--profile",
+        type=Path,
+        required=True,
+        help="Path to profile YAML",
+    )
+    filter_parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("rfp_finder.db"),
+        help="Read opportunities from store",
+    )
+    filter_parser.add_argument(
+        "--input",
+        type=Path,
+        default=None,
+        help="Read opportunities from JSON file (alternative to --db)",
+    )
+    filter_parser.add_argument(
+        "--status",
+        type=str,
+        default="open",
+        help="Store status filter when using --db (default: open)",
+    )
+    filter_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write filtered results to file",
+    )
+    filter_parser.add_argument(
+        "--show-explanations",
+        action="store_true",
+        help="Include filter explanations in output",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
         _run_ingest(args)
     elif args.command == "store":
         _run_store(args)
+    elif args.command == "filter":
+        _run_filter(args)
     else:
         parser.print_help()
 
@@ -145,6 +185,48 @@ def _run_store(args: argparse.Namespace) -> None:
     elif args.action == "count":
         opps = store.get_by_status(args.status) if args.status else store.get_all()
         print(len(opps))
+
+
+def _run_filter(args: argparse.Namespace) -> None:
+    """Run filter command."""
+    from rfp_finder.filtering import FilterEngine
+    from rfp_finder.models.opportunity import NormalizedOpportunity
+    from rfp_finder.models.profile import UserProfile
+    from rfp_finder.store import OpportunityStore
+
+    profile = UserProfile.from_yaml(args.profile)
+    engine = FilterEngine(profile)
+
+    if args.input:
+        data = json.loads(args.input.read_text())
+        opportunities = [NormalizedOpportunity.model_validate(o) for o in data]
+    else:
+        store = OpportunityStore(args.db)
+        opportunities = store.get_by_status(args.status) if args.status else store.get_all()
+
+    results = engine.filter_many(opportunities)
+    passed = [r for r in results if r.passed]
+
+    if args.show_explanations:
+        output_data = [
+            {
+                "opportunity": r.opportunity.model_dump(mode="json"),
+                "passed": r.passed,
+                "eligibility": r.eligibility,
+                "explanations": r.explanations,
+            }
+            for r in results
+        ]
+    else:
+        output_data = [r.opportunity.model_dump(mode="json") for r in passed]
+
+    output = json.dumps(output_data, indent=2, default=str)
+
+    if args.output:
+        args.output.write_text(output, encoding="utf-8")
+        print(f"Filtered: {len(passed)} passed of {len(opportunities)} (wrote to {args.output})")
+    else:
+        print(output)
 
 
 if __name__ == "__main__":

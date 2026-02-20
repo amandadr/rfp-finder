@@ -29,10 +29,11 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 ---
 
-## Phase 3 — Profile-Based Filtering (Non-AI Baseline)
+## Phase 3 — Profile-Based Filtering (Non-AI Baseline) ✅
 
 **Solutions:** Hard filters (region, keywords, deadline, budget), eligibility rules engine, filter explanations.  
-**Deliverable:** Obviously irrelevant results removed before AI.
+**Deliverable:** Obviously irrelevant results removed before AI.  
+**Status:** Complete. See `src/rfp_finder/filtering/`; `rfp-finder filter --profile YAML --db DB`.
 
 ---
 

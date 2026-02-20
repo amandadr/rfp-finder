@@ -376,6 +376,8 @@ class FilterResult:
 - Each rule returns `(passed, explanation)`.
 - Filtered list with full explanation trail for digest transparency.
 
+**Implementation:** `FilterEngine` and rules in `src/rfp_finder/filtering/`; `filter` CLI with `--profile`, `--db`/`--input`, `--show-explanations`.
+
 ---
 
 ## Phase 4 — AI Relevance Scoring Using Examples

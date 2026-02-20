@@ -29,6 +29,10 @@ poetry run rfp-finder ingest --source canadabuys --store rfp_finder.db
 poetry run rfp-finder store count --db rfp_finder.db
 poetry run rfp-finder store list --db rfp_finder.db --status open
 
+# Filter by profile
+poetry run rfp-finder filter --profile profiles/example.yaml --db rfp_finder.db
+poetry run rfp-finder filter --profile profiles/example.yaml --db rfp_finder.db --show-explanations --output filtered.json
+
 # Run tests
 poetry run pytest tests/ -v
 ```
@@ -37,3 +41,4 @@ poetry run pytest tests/ -v
 
 - **Phase 1 (Source Ingestion)** — Complete. CanadaBuys connector; connector framework; incremental fetch; attachment discovery.
 - **Phase 2 (Storage, Dedupe, Change Tracking)** — Complete. SQLite store with upsert, deduplication by (source, source_id), content-hash amendment detection, lifecycle status, run tracking.
+- **Phase 3 (Profile-Based Filtering)** — Complete. FilterEngine with region, keywords, deadline, budget, eligibility rules; full explanation trail; `filter` CLI.
