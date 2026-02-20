@@ -52,6 +52,19 @@ _CAT_CNST = "CNST"  # Construction
 # Commodity code prefixes that indicate clearly non-tech (CNST handled separately)
 _NON_TECH_PREFIXES = ("56", "90")  # furniture, cleaning (72=construction via CNST)
 
+# Title/lead phrases that indicate non-tech procurement (penalize)
+_NON_TECH_TITLE_PHRASES = (
+    "office furniture",
+    "commercial office furniture",
+    "furniture and related",
+    "gpu hardware",
+    "hardware or equivalent",
+    "hardware bundle",
+    "flasharray hardware",
+    "alternate transportation",
+    "transportation services",
+)
+
 
 def _keyword_in_lead(title: str, content: str, keyword: str) -> bool:
     """True if keyword appears in title or first 300 chars of content."""
@@ -70,6 +83,12 @@ def _is_non_tech_category(opp: NormalizedOpportunity) -> bool:
         if any(code.startswith(p) for p in _NON_TECH_PREFIXES):
             return True
     return False
+
+
+def _is_non_tech_title_lead(title: str, content: str) -> bool:
+    """True if title or first 300 chars indicate non-tech procurement."""
+    text = f"{title or ''} {(content or '')[:300]}".lower()
+    return any(phrase in text for phrase in _NON_TECH_TITLE_PHRASES)
 
 
 def _score_stub(
@@ -100,9 +119,9 @@ def _score_stub(
         score += 3
         reasons.append("PDF attachment content available")
 
-    # +4 if category == SRV (Services)
+    # +4 if category == SRV (Services) — but not for non-tech services (transportation, etc.)
     cats = [c.upper() for c in (opp.categories or [])]
-    if _CAT_SRV in cats:
+    if _CAT_SRV in cats and not _is_non_tech_title_lead(opp.title or "", content):
         score += 4
         reasons.append("Category: Services (SRV)")
 
@@ -127,8 +146,19 @@ def _score_stub(
         score -= 10
         risks.append("Category/commodity: non-tech")
 
-    score = max(0, min(100, score))
+    # -10 if title/lead indicates non-tech (furniture, hardware procurement, transportation)
+    if _is_non_tech_title_lead(opp.title or "", content):
+        score -= 10
+        risks.append("Title/scope: non-tech procurement")
+
+    # Dampen score by confidence (low confidence = less trust in the signal)
     conf = _confidence_from_content(opp, content, enriched_text)
+    dampen = {"high": 0, "medium": -3, "low": -8, "insufficient_text": -15}.get(
+        conf, -5
+    )
+    score += dampen
+
+    score = max(0, min(100, score))
     evidence = [opp.title[:100]] if opp.title and opp.title != "Untitled" else []
     if content:
         evidence.append(content[:150].replace("\n", " ").strip() + ("..." if len(content) > 150 else ""))

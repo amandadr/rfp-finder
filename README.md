@@ -41,6 +41,27 @@ poetry run rfp-finder run --profile profiles/example.yaml --db rfp_finder.db --s
 poetry run pytest tests/ -v
 ```
 
+## LLM Scoring (Optional)
+
+To use OpenAI for AI-powered scoring instead of heuristics:
+
+```bash
+poetry install -E llm   # installs openai package
+cp .env.example .env
+# Add OPENAI_API_KEY=sk-... and RFP_FINDER_LLM_PROVIDER=openai to .env
+```
+
+## Secrets
+
+Store API keys and other secrets in a `.env` file (gitignored):
+
+```bash
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+```
+
+Used when `RFP_FINDER_LLM_PROVIDER=openai` for AI scoring. Never commit `.env`.
+
 ## Project Status
 
 - **Phase 1 (Source Ingestion)** — Complete. CanadaBuys connector; connector framework; incremental fetch; attachment discovery.

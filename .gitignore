@@ -28,6 +28,9 @@ htmlcov/
 # Local store
 *.db
 
+# Secrets (never commit)
+.env
+
 # Cache and outputs
 cache/
 scored.json

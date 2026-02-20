@@ -5,9 +5,18 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+# Load .env into os.environ before any commands run (keeps OPENAI_API_KEY etc. out of code)
+def _load_env() -> None:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+
 
 def main() -> None:
     """Parse args and dispatch to subcommands."""
+    _load_env()
     parser = argparse.ArgumentParser(prog="rfp-finder", description="Canadian AI-driven RFP finder")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
