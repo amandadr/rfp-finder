@@ -2,10 +2,22 @@
 
 import csv
 from io import StringIO
+from unittest.mock import patch
 
 import pytest
 
 from rfp_finder.models.raw import RawOpportunity
+
+
+def _build_csv(rows: list[dict]) -> str:
+    """Build CSV string from list of row dicts."""
+    if not rows:
+        return ""
+    out = StringIO()
+    writer = csv.DictWriter(out, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return out.getvalue()
 
 
 @pytest.fixture
@@ -51,8 +63,13 @@ def raw_opportunity_from_csv(sample_canadabuys_csv_row: dict[str, str]) -> RawOp
 @pytest.fixture
 def sample_canadabuys_csv_content(sample_canadabuys_csv_row: dict[str, str]) -> str:
     """Full CSV content with header and one data row."""
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=sample_canadabuys_csv_row.keys())
-    writer.writeheader()
-    writer.writerow(sample_canadabuys_csv_row)
-    return output.getvalue()
+    return _build_csv([sample_canadabuys_csv_row])
+
+
+@pytest.fixture
+def canadabuys_connector_patched(sample_canadabuys_csv_content: str):
+    """Context manager that patches CanadaBuysConnector._fetch_csv with sample data."""
+    return patch(
+        "rfp_finder.connectors.canadabuys.connector.CanadaBuysConnector._fetch_csv",
+        return_value=sample_canadabuys_csv_content,
+    )
