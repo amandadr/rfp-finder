@@ -28,6 +28,10 @@ htmlcov/
 # Local store
 *.db
 
+# Cache and outputs
+cache/
+scored.json
+
 # OS
 .DS_Store
 Thumbs.db
