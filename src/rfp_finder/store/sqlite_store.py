@@ -108,9 +108,10 @@ class OpportunityStore:
                         (content_hash, status, prior_hash, data_str, now, opp.id),
                     )
                 else:
+                    # Same source content: still update data so normalization improvements persist
                     conn.execute(
-                        "UPDATE opportunities SET last_seen_at = ? WHERE id = ?",
-                        (now, opp.id),
+                        "UPDATE opportunities SET data = ?, last_seen_at = ? WHERE id = ?",
+                        (data_str, now, opp.id),
                     )
             else:
                 was_new = True

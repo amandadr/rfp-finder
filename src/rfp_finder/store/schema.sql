@@ -44,3 +44,16 @@ CREATE TABLE IF NOT EXISTS examples (
 );
 CREATE INDEX IF NOT EXISTS idx_examples_profile ON examples(profile_id);
 CREATE INDEX IF NOT EXISTS idx_examples_label ON examples(label);
+
+-- Phase 5: Attachment cache and extraction
+CREATE TABLE IF NOT EXISTS attachment_cache (
+    url TEXT PRIMARY KEY,
+    content_hash TEXT,
+    local_path TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    extraction_status TEXT NOT NULL DEFAULT 'pending',
+    extracted_text TEXT,
+    text_length INTEGER,
+    page_count INTEGER,
+    error_message TEXT
+);

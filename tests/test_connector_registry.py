@@ -25,6 +25,12 @@ class TestConnectorRegistry:
             ConnectorRegistry.get("merx")
 
     def test_available_sources(self) -> None:
-        """available_sources returns at least canadabuys."""
+        """available_sources returns canadabuys and bidsandtenders."""
         sources = ConnectorRegistry.available_sources()
         assert "canadabuys" in sources
+        assert "bidsandtenders" in sources
+
+    def test_get_bidsandtenders(self) -> None:
+        """Registry returns BidsTenders connector for 'bidsandtenders'."""
+        connector = ConnectorRegistry.get("bidsandtenders")
+        assert connector.source_id == "bidsandtenders"

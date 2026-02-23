@@ -31,7 +31,14 @@ from .constants import (
     TRADE_AGREEMENTS_ENG,
     UNSPSC,
 )
-from .parsers import content_hash, extract_attachments, parse_date, parse_trade_agreements
+from .parsers import (
+    content_hash,
+    derive_title_from_summary,
+    extract_attachments,
+    normalize_region,
+    parse_date,
+    parse_trade_agreements,
+)
 
 
 class CanadaBuysConnector(BaseConnector):
@@ -110,9 +117,12 @@ class CanadaBuysConnector(BaseConnector):
         ref = (d.get(REFERENCE_NUMBER) or "").strip()
         return ref or d.get(SOLICITATION_NUMBER) or "unknown"
 
-    def _get_title(self, d: dict[str, str]) -> str:
-        """Extract title with fallback."""
-        return (d.get(TITLE_ENG) or "").strip() or "Untitled"
+    def _get_title(self, d: dict[str, str], summary: str | None) -> str:
+        """Extract title with fallback to summary-derived title."""
+        title = (d.get(TITLE_ENG) or "").strip()
+        if title and title.lower() != "untitled":
+            return title
+        return derive_title_from_summary(summary)
 
     def _get_url(self, d: dict[str, str]) -> Optional[str]:
         """Extract and normalize notice URL."""
@@ -155,17 +165,23 @@ class CanadaBuysConnector(BaseConnector):
         closing_at = parse_date(d.get(CLOSING_DATE))
         amended_at = parse_date(d.get(AMENDMENT_DATE))
 
-        region = (d.get(REGIONS_OPPORTUNITY_ENG) or "").strip() or None
+        region = normalize_region((d.get(REGIONS_OPPORTUNITY_ENG) or "").strip() or None)
         regions_delivery = (d.get(REGIONS_DELIVERY_ENG) or "").strip()
         locations = [r.strip() for r in regions_delivery.split(",") if r.strip()] if regions_delivery else None
+
+        summary = (d.get(DESCRIPTION_ENG) or "").strip() or None
+        attachments = extract_attachments(d.get(ATTACHMENTS_ENG))
+        url = self._get_url(d)
+        if not url and attachments:
+            url = attachments[0].url
 
         return NormalizedOpportunity(
             id=opp_id,
             source=self.source_id,
             source_id=source_id,
-            title=self._get_title(d),
-            summary=(d.get(DESCRIPTION_ENG) or "").strip() or None,
-            url=self._get_url(d),
+            title=self._get_title(d, summary),
+            summary=summary,
+            url=url,
             buyer=(d.get(CONTRACTING_ENTITY_ENG) or "").strip() or None,
             buyer_id=None,
             published_at=published_at,
@@ -179,7 +195,7 @@ class CanadaBuysConnector(BaseConnector):
             budget_min=None,
             budget_max=None,
             budget_currency=None,
-            attachments=extract_attachments(d.get(ATTACHMENTS_ENG)),
+            attachments=attachments,
             status=self._get_status(d, amended_at),
             first_seen_at=now,
             last_seen_at=now,

@@ -7,7 +7,8 @@ Config structure for user preferences, eligibility, and notification settings.
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `profile_id` | string | — | Unique identifier |
-| `keywords` | list[string] | [] | Must-have terms for AI |
+| `keywords_mode` | string | `required` | `required` \| `preferred` \| `exclude_only` |
+| `keywords` | list[string] | [] | Terms for scoring (and filtering when mode=required) |
 | `exclude_keywords` | list[string] | [] | Deal-breakers |
 | `preferred_categories` | list[string] | [] | |
 | `example_urls` | list[string] | [] | "Good fit" examples |

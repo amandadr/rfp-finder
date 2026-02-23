@@ -23,11 +23,12 @@ This document expands each phase of the development plan with concrete technical
 
 ### 0.1 Sources in Scope (v1)
 
-**Decision: Start with CanadaBuys only ( Phase 1 implementation )**
+**Sources in scope**
 
 | Source | Type | Rationale | Coverage |
 |--------|------|-----------|----------|
 | **CanadaBuys** | Federal + cross-jurisdictional | Official Government of Canada portal; open data CSV files; PSPC, Crown corps, broader public sector. Refreshed daily (open tenders) and every 2 hours (new tenders). | Federal government |
+| **Bids & Tenders** | Municipal/provincial | Digital eProcurement platform (bidsandtenders.ca) used by municipalities and organizations. Connector structure in place; data access requires API/feed from support@bidsandtenders.ca. | Municipal, provincial |
 
 **Deferred for later phases:** MERX, provincial-only portals (SEAO, Purchasing Connection, etc.).
 
@@ -449,14 +450,27 @@ class LLMScoringResult:
 | `insufficient_text` | Very short summary, no attachments parsed |
 | `unknown_eligibility` | Eligibility field missing or unclear |
 
+**Confidence dampening:** Low confidence reduces the final score (low: -8, insufficient_text: -15).
+
 ---
 
-### 4.5 Phase 4 Deliverable
+### 4.5 Heuristic Stub (Default)
+
+When no LLM is configured, a rule-based stub applies small cumulative boosts and penalties:
+
+- **Boosts:** +3 PDF present, +4 category SRV (excl. non-tech services), +5/keyword in title/lead (max 3), similarity -15 to +15
+- **Penalties:** -8 CNST, -10 non-tech commodity/title (furniture, hardware procurement, transportation)
+
+See [SCORING.md](./SCORING.md).
+
+---
+
+### 4.6 Phase 4 Deliverable
 
 - Example ingestion CLI: `rfp-finder examples add --url URL --label good`.
-- Similarity shortlist; LLM scoring for shortlist.
+- Similarity shortlist; heuristic stub or LLM scoring.
 - Ranked list with score, rationale, evidence, confidence label.
-- Configurable LLM provider and model via env vars.
+- Env vars: `RFP_FINDER_LLM_PROVIDER`, `OPENAI_API_KEY`, `RFP_FINDER_LLM_MODEL`. Copy `.env.example` to `.env`.
 
 ---
 

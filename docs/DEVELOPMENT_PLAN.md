@@ -17,7 +17,9 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 **Solutions:** Connector framework, CanadaBuys connector, incremental fetching, attachment discovery.  
 **Deliverable:** Repeatable run producing normalized opportunities from first source.  
-**Status:** Complete.
+**Status:** Complete. See `src/rfp_finder/connectors/`; `rfp-finder ingest --source canadabuys|bidsandtenders`.
+
+**Bids & Tenders:** Connector structure in place; returns empty until API/feed access from support@bidsandtenders.ca.
 
 ---
 
@@ -39,9 +41,9 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 ## Phase 4 — AI Relevance Scoring Using Examples ✅
 
-**Solutions:** Example ingestion, similarity shortlist, LLM ranking + rationale, confidence labels.  
+**Solutions:** Example ingestion, similarity shortlist, heuristic stub (category/keyword boosts, non-tech penalties, confidence dampening), optional LLM (OpenAI/Ollama).  
 **Deliverable:** Ranked, personalized, explainable opportunities.  
-**Status:** Complete. See `src/rfp_finder/scoring/`; `rfp-finder examples add/list/sync`; `rfp-finder score`.
+**Status:** Complete. See `src/rfp_finder/scoring/`; [SCORING.md](./SCORING.md); `rfp-finder examples add/list/sync`; `rfp-finder run`.
 
 ---
 
@@ -57,6 +59,16 @@ High-level phased plan. See **[SOLUTIONS_APPROACH.md](./SOLUTIONS_APPROACH.md)**
 
 **`rfp-finder run`** runs the full pipeline: filter → score (with optional PDF enrichment).  
 Use `--stats` for filter exclusion breakdown. See `src/rfp_finder/pipeline.py`.
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENAI_API_KEY` | Required when using OpenAI for scoring |
+| `RFP_FINDER_LLM_PROVIDER` | `ollama` \| `openai` \| unset (heuristic stub) |
+| `RFP_FINDER_LLM_MODEL` | Model override (default: `gpt-4o-mini` / `llama3.2`) |
+
+Copy `.env.example` to `.env`; never commit `.env`. See [SCORING.md](./SCORING.md).
 
 ---
 

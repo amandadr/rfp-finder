@@ -6,7 +6,9 @@ import pytest
 
 from rfp_finder.connectors.canadabuys.parsers import (
     content_hash,
+    derive_title_from_summary,
     extract_attachments,
+    normalize_region,
     parse_date,
     parse_trade_agreements,
 )
@@ -55,6 +57,44 @@ class TestExtractAttachments:
         """Returns empty list for empty/None field."""
         assert extract_attachments(None) == []
         assert extract_attachments("") == []
+
+    def test_comma_separated_urls(self) -> None:
+        """Comma-separated URLs yield separate AttachmentRefs."""
+        text = "https://a.com/1.pdf, https://b.com/2.pdf"
+        refs = extract_attachments(text)
+        assert len(refs) == 2
+        assert refs[0].url == "https://a.com/1.pdf"
+        assert refs[1].url == "https://b.com/2.pdf"
+
+
+class TestDeriveTitleFromSummary:
+    """Tests for derive_title_from_summary."""
+
+    def test_empty_returns_untitled(self) -> None:
+        assert derive_title_from_summary(None) == "Untitled"
+        assert derive_title_from_summary("") == "Untitled"
+
+    def test_strips_npp_boilerplate(self) -> None:
+        s = "NOTICE OF PROPOSED PROCUREMENT (NPP)\n\nUrinalysis sample collection for offenders"
+        # Second paragraph is substantive
+        assert "Urinalysis" in derive_title_from_summary(s)
+        assert derive_title_from_summary(s) == "Urinalysis sample collection for offenders"
+
+    def test_uses_first_paragraph(self) -> None:
+        s = "RFQ for Licensed Software subscription and support"
+        assert derive_title_from_summary(s) == "RFQ for Licensed Software subscription and support"
+
+
+class TestNormalizeRegion:
+    def test_canada_to_national(self) -> None:
+        assert normalize_region("*Canada") == "National"
+
+    def test_ncr_to_on(self) -> None:
+        assert normalize_region("*National Capital Region (NCR)") == "ON"
+
+    def test_none_empty(self) -> None:
+        assert normalize_region(None) is None
+        assert normalize_region("") is None
 
 
 class TestParseTradeAgreements:

@@ -8,6 +8,7 @@ A tool that finds and ranks Canadian government and public-sector RFP/tender opp
 |----------|---------|
 | [DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | High-level phased plan |
 | [SOLUTIONS_APPROACH.md](docs/SOLUTIONS_APPROACH.md) | Full technical solutions, data models, and implementation approach per phase |
+| [SCORING.md](docs/SCORING.md) | Scoring model, heuristic rules, LLM setup, env vars |
 
 ## Quick Start
 
@@ -18,6 +19,9 @@ poetry install
 # Ingest from CanadaBuys (writes to stdout or --output file)
 poetry run rfp-finder ingest --source canadabuys
 poetry run rfp-finder ingest --source canadabuys --output opportunities.json
+
+# Ingest from Bids & Tenders (bidsandtenders.ca — connector structure only; data access pending)
+poetry run rfp-finder ingest --source bidsandtenders
 
 # Incremental fetch (new tenders only)
 poetry run rfp-finder ingest --source canadabuys --incremental
@@ -67,3 +71,5 @@ Used when `RFP_FINDER_LLM_PROVIDER=openai` for AI scoring. Never commit `.env`.
 - **Phase 1 (Source Ingestion)** — Complete. CanadaBuys connector; connector framework; incremental fetch; attachment discovery.
 - **Phase 2 (Storage, Dedupe, Change Tracking)** — Complete. SQLite store with upsert, deduplication by (source, source_id), content-hash amendment detection, lifecycle status, run tracking.
 - **Phase 3 (Profile-Based Filtering)** — Complete. FilterEngine with region, keywords, deadline, budget, eligibility rules; full explanation trail; `filter` CLI.
+- **Phase 4 (AI Relevance Scoring)** — Complete. Heuristic stub (category, keyword, non-tech penalties, confidence dampening); optional LLM (OpenAI/Ollama); `rfp-finder run` pipeline.
+- **Phase 5 (Document Handling)** — Complete. Attachment fetch/cache, PDF extraction, enrichment in scoring pipeline.

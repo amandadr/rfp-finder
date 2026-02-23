@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +26,7 @@ def main() -> None:
     ingest_parser.add_argument(
         "--source",
         default="canadabuys",
-        choices=["canadabuys"],
+        choices=["canadabuys", "bidsandtenders"],
         help="Source to ingest from",
     )
     ingest_parser.add_argument(
@@ -295,6 +296,13 @@ def _run_ingest(args: argparse.Namespace) -> None:
     else:
         opportunities = connector.fetch_all()
 
+    if args.source == "bidsandtenders" and len(opportunities) == 0:
+        print(
+            "Note: Bids & Tenders connector returns empty — no public API/feed. "
+            "Contact support@bidsandtenders.ca for data access.",
+            file=sys.stderr,
+        )
+
     store = None
     run_record = None
     if args.store is not None:
@@ -372,7 +380,7 @@ def _run_filter(args: argparse.Namespace) -> None:
         print(
             "No opportunities in store. Run ingest first:\n"
             "  poetry run rfp-finder ingest --source canadabuys --store rfp_finder.db",
-            file=__import__("sys").stderr,
+            file=sys.stderr,
         )
         raise SystemExit(1)
 
@@ -474,7 +482,7 @@ def _run_score(args: argparse.Namespace) -> None:
         results = engine.filter_many(raw)
         opportunities = [r.opportunity for r in results if r.passed]
     if not opportunities:
-        print("No opportunities to score.", file=__import__("sys").stderr)
+        print("No opportunities to score.", file=sys.stderr)
         raise SystemExit(1)
     ex_store = ExampleStore(args.db)
     cache_store = AttachmentCacheStore(args.db) if getattr(args, "enrich_top", 0) > 0 else None
@@ -520,7 +528,7 @@ def _run_run(args: argparse.Namespace) -> None:
         scored = result
 
     if not scored:
-        print("No opportunities passed filters.", file=__import__("sys").stderr)
+        print("No opportunities passed filters.", file=sys.stderr)
         raise SystemExit(1)
 
     output = json.dumps(scored, indent=2, default=str)
