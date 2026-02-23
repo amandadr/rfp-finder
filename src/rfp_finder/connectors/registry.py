@@ -16,12 +16,12 @@ class ConnectorRegistry:
     }
 
     @classmethod
-    def get(cls, source_id: str) -> BaseConnector:
-        """Get a connector instance for the given source."""
+    def get(cls, source_id: str, **kwargs) -> BaseConnector:
+        """Get a connector instance for the given source. kwargs passed to connector __init__."""
         connector_cls = cls._connectors.get(source_id.lower())
         if not connector_cls:
             raise ValueError(f"Unknown source: {source_id}. Available: {list(cls._connectors.keys())}")
-        return connector_cls()
+        return connector_cls(**kwargs)
 
     @classmethod
     def available_sources(cls) -> list[str]:

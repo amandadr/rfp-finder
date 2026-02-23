@@ -53,6 +53,25 @@ def main() -> None:
         metavar="DB_PATH",
         help="Persist to SQLite store at given path (e.g. rfp_finder.db)",
     )
+    ingest_parser.add_argument(
+        "--tenant",
+        type=str,
+        default=None,
+        help="[Bids & Tenders] Single tenant subdomain (e.g. halifax, moncton)",
+    )
+    ingest_parser.add_argument(
+        "--tenants",
+        type=str,
+        default=None,
+        metavar="LIST",
+        help="[Bids & Tenders] Comma-separated tenants, or 'all' for all Canadian tenants",
+    )
+    ingest_parser.add_argument(
+        "--province",
+        type=str,
+        default=None,
+        help="[Bids & Tenders] Two-letter province code to filter tenants (e.g. ON, BC)",
+    )
 
     # store
     store_parser = subparsers.add_parser("store", help="Query the opportunity store")
@@ -259,6 +278,18 @@ def main() -> None:
         help="Max opportunities to process (default: 50)",
     )
 
+    # tenants (Bids & Tenders)
+    tenants_parser = subparsers.add_parser(
+        "tenants",
+        help="List Bids & Tenders tenant subdomains (use with ingest --tenant/--tenants)",
+    )
+    tenants_parser.add_argument(
+        "--province",
+        type=str,
+        default=None,
+        help="Filter by two-letter province code (e.g. ON, BC)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
@@ -275,15 +306,44 @@ def main() -> None:
         _run_run(args)
     elif args.command == "enrich":
         _run_enrich(args)
+    elif args.command == "tenants":
+        _run_tenants(args)
     else:
         parser.print_help()
+
+
+def _run_tenants(args: argparse.Namespace) -> None:
+    """List Bids & Tenders tenants."""
+    from rfp_finder.connectors.bidsandtenders.tenants import get_tenant_subdomains, TENANTS
+
+    subdomains = get_tenant_subdomains(province=args.province, default_all=True)
+    for sub in subdomains:
+        ti = next((t for t in TENANTS.values() if t.subdomain == sub), None)
+        name = ti.name if ti else sub
+        prov = f" ({ti.province})" if ti and ti.province else ""
+        print(f"  {sub:25} {name}{prov}")
+    print(f"\nUse: rfp-finder ingest --source bidsandtenders --tenant <subdomain>")
+    print(f"     rfp-finder ingest --source bidsandtenders --tenants all")
+    print(f"     rfp-finder ingest --source bidsandtenders --province ON")
 
 
 def _run_ingest(args: argparse.Namespace) -> None:
     """Run ingest command."""
     from rfp_finder.connectors.registry import ConnectorRegistry
 
-    connector = ConnectorRegistry.get(args.source)
+    connector_kwargs: dict = {}
+    if args.source == "bidsandtenders":
+        tenant = getattr(args, "tenant", None)
+        tenants = getattr(args, "tenants", None)
+        province = getattr(args, "province", None)
+        if tenant:
+            connector_kwargs["tenant"] = tenant
+        elif tenants:
+            connector_kwargs["tenants"] = [t.strip() for t in tenants.split(",") if t.strip()]
+        if province:
+            connector_kwargs["province"] = province
+
+    connector = ConnectorRegistry.get(args.source, **connector_kwargs)
     since_dt = None
     if args.since:
         try:
@@ -298,8 +358,8 @@ def _run_ingest(args: argparse.Namespace) -> None:
 
     if args.source == "bidsandtenders" and len(opportunities) == 0:
         print(
-            "Note: Bids & Tenders connector returns empty — no public API/feed. "
-            "Contact support@bidsandtenders.ca for data access.",
+            "Note: No opportunities found. Try --tenant halifax or --tenants all for multi-tenant. "
+            "See: rfp-finder ingest --help",
             file=sys.stderr,
         )
 

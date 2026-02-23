@@ -10,7 +10,7 @@ from rfp_finder.models.raw import RawOpportunity
 
 @pytest.fixture
 def connector() -> BidsTendersConnector:
-    """Shared connector instance."""
+    """Shared connector instance (default: bids tenant)."""
     return BidsTendersConnector()
 
 
@@ -26,11 +26,12 @@ class TestBidsTendersConnectorNormalize:
                 "description": "Test description",
                 "url": "https://bids.bidsandtenders.ca/opp/123",
                 "buyer": "City of Test",
+                "_tenant": "bids",
             }
         )
         opp = connector.normalize(raw)
         assert opp.source == "bidsandtenders"
-        assert opp.source_id == "BT-123"
+        assert opp.source_id == "bids:BT-123"
         assert opp.title == "Test RFP"
         assert opp.summary == "Test description"
         assert opp.url == "https://bids.bidsandtenders.ca/opp/123"
@@ -38,7 +39,7 @@ class TestBidsTendersConnectorNormalize:
 
     def test_untitled_fallback(self, connector: BidsTendersConnector) -> None:
         """Empty title becomes 'Untitled'."""
-        raw = RawOpportunity(data={"id": "x", "title": ""})
+        raw = RawOpportunity(data={"id": "x", "title": "", "_tenant": "bids"})
         opp = connector.normalize(raw)
         assert opp.title == "Untitled"
 
@@ -73,8 +74,9 @@ class TestBidsTendersConnectorSearch:
         assert len(raw_list) == 1
         assert raw_list[0].data["id"] == "BT-123"
         assert raw_list[0].data["title"] == "Test RFP"
-        mock_bootstrap.assert_called_once()
-        mock_post.assert_called_once()
+        assert raw_list[0].data["_tenant"] == "bids"
+        assert mock_bootstrap.call_count == 1
+        assert mock_post.call_count == 1
 
     @patch.object(BidsTendersConnector, "_bootstrap")
     @patch.object(BidsTendersConnector, "_post_search")
@@ -116,26 +118,26 @@ class TestBidsTendersConnectorSearch:
 class TestBidsTendersConnectorFetchDetails:
     """Tests for fetch_details."""
 
-    @patch.object(BidsTendersConnector, "search")
+    @patch.object(BidsTendersConnector, "_search_single_tenant")
     def test_fetch_details_returns_matching_raw(
         self,
-        mock_search: object,
+        mock_search_tenant: object,
         connector: BidsTendersConnector,
     ) -> None:
         """fetch_details returns raw when ID matches."""
-        raw = RawOpportunity(data={"id": "BT-123", "title": "Test"})
-        mock_search.return_value = [raw]
+        raw = RawOpportunity(data={"id": "BT-123", "title": "Test", "_tenant": "bids"})
+        mock_search_tenant.return_value = [raw]
         result = connector.fetch_details("BT-123")
         assert result.data["id"] == "BT-123"
 
-    @patch.object(BidsTendersConnector, "search")
+    @patch.object(BidsTendersConnector, "_search_single_tenant")
     def test_fetch_details_raises_when_not_found(
         self,
-        mock_search: object,
+        mock_search_tenant: object,
         connector: BidsTendersConnector,
     ) -> None:
         """fetch_details raises ValueError when ID not found."""
-        mock_search.return_value = []
+        mock_search_tenant.return_value = []
         with pytest.raises(ValueError, match="Opportunity not found"):
             connector.fetch_details("nonexistent")
 
@@ -151,9 +153,9 @@ class TestBidsTendersConnectorFetchAll:
     ) -> None:
         """fetch_all returns normalized list."""
         mock_search.return_value = [
-            RawOpportunity(data={"id": "1", "title": "RFP 1"}),
+            RawOpportunity(data={"id": "1", "title": "RFP 1", "_tenant": "bids"}),
         ]
         opps = connector.fetch_all()
         assert len(opps) == 1
         assert opps[0].source == "bidsandtenders"
-        assert opps[0].source_id == "1"
+        assert opps[0].source_id == "bids:1"
