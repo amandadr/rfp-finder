@@ -3,6 +3,7 @@
 from typing import Type
 
 from rfp_finder.connectors.base import BaseConnector
+from rfp_finder.connectors.bidsandtenders import BidsTendersConnector
 from rfp_finder.connectors.canadabuys import CanadaBuysConnector
 
 
@@ -11,6 +12,7 @@ class ConnectorRegistry:
 
     _connectors: dict[str, Type[BaseConnector]] = {
         "canadabuys": CanadaBuysConnector,
+        "bidsandtenders": BidsTendersConnector,
     }
 
     @classmethod
